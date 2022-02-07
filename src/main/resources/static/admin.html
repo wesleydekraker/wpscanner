@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<title>Admin Area | WP Wesley</title>
+	<script src="/js/vue.min.js"></script>
+	<link rel="stylesheet" type="text/css" href="/css/main.css">
+</head>
+<body>
+	<header>
+		<div class="wrapper">
+			<img src="/images/logo.png" alt="WP Wesley">
+		</div>
+	</header>
+	<section>
+		<div id="app" class="wrapper">
+			<h1>Admin Area</h1>
+			<div id="login" v-if="token === null">
+				<form id="login-form" v-on:submit.prevent>
+					<input id="username" name="username" type="text" placeholder="Username" v-model="loginForm.username" autofocus/>
+					<input id="password" name="password" type="password" placeholder="Password" v-model="loginForm.password"/>
+					<button id="scan-button" type="submit" v-on:click="login">Login</button>
+				</form>
+				<div id="login-message" class="dynamic">{{ loginMessage }}</div>
+			</div>
+			<div id="portal" v-if="token !== null">
+				<div id="scans" class="dynamic">
+					<h2>Scans</h2>
+					<p v-if="scans.length === 0">No scans found.</p>
+					<table class="results" v-if="scans.length > 0">
+						<tr>
+							<th>Visitor</th>
+							<th>Website</th>
+							<th>Start Time</th>
+							<th>End Time</th>
+						</tr>
+						<tr v-for="scan in scans">
+							<td>{{ scan.userIp }}</td>
+							<td>{{ scan.url }}</td>
+							<td>{{ scan.startTime }}</td>
+							<td>{{ scan.endTime }}</td>
+						</tr>
+					</table>
+				</div>
+				<div id="themes" class="dynamic">
+					<h2>Theme Vulnerabilities</h2>
+					<p v-if="themeVulnerabilities.length === 0">No theme vulnerabilities found.</p>
+					<table id="theme-vulnerabilities" class="results" v-if="themeVulnerabilities.length > 0">
+						<tr>
+							<th>Theme</th>
+							<th>First Version</th>
+							<th>Last Version</th>
+							<th>Vulnerability Type</th>
+						</tr>
+						<tr v-for="themeVulnerability in themeVulnerabilities">
+							<td>{{ themeVulnerability.displayName }}</td>
+							<td>{{ themeVulnerability.firstVersion }}</td>
+							<td>{{ themeVulnerability.lastVersion }}</td>
+							<td>{{ themeVulnerability.vulnerabilityType }}</td>
+						</tr>
+					</table>
+
+					<a id="toggle-theme" v-on:click="toggleAddThemeVulnerability" v-on:submit.prevent>
+						Is there a new vulnerable theme found? Add it to improve the scanner!
+					</a>
+
+					<form id="add-theme" v-if="addThemeVulnerabilityVisibility" v-on:submit.prevent>
+						<input name="directoryName" type="text" placeholder="Directory Name" v-model="themeVulnerabilityForm.directoryName"/>
+						<input name="displayName" type="text" placeholder="Theme Name" v-model="themeVulnerabilityForm.displayName"/>
+						<input name="firstVersion" type="text" placeholder="First Version" v-model="themeVulnerabilityForm.firstVersion"/>
+						<input name="lastVersion" type="text" placeholder="Last Version" v-model="themeVulnerabilityForm.lastVersion"/>
+						<input name="vulnerabilityType" type="text" placeholder="Vulnerability Type" v-model="themeVulnerabilityForm.vulnerabilityType"/>
+						<button type="submit" v-on:click="addThemeVulnerability">Add Theme</button>
+					</form>
+				</div>
+				<div id="plugins" class="dynamic">
+					<h2>Plugin Vulnerabilities</h2>
+					<p v-if="pluginVulnerabilities.length === 0">No plugin vulnerabilities found.</p>
+					<table id="plugin-vulnerabilities" class="results" v-if="pluginVulnerabilities.length > 0">
+						<tr>
+							<th>Plugin</th>
+							<th>First Version</th>
+							<th>Last Version</th>
+							<th>Vulnerability Type</th>
+						</tr>
+						<tr v-for="pluginVulnerability in pluginVulnerabilities">
+							<td>{{ pluginVulnerability.displayName }}</td>
+							<td>{{ pluginVulnerability.firstVersion }}</td>
+							<td>{{ pluginVulnerability.lastVersion }}</td>
+							<td>{{ pluginVulnerability.vulnerabilityType }}</td>
+						</tr>
+					</table>
+
+					<a id="toggle-plugin" v-on:click="toggleAddPluginVulnerability" v-on:submit.prevent>
+						Is there a new vulnerable plugin found? Add it to improve the scanner!
+					</a>
+
+					<form id="add-plugin" v-if="addPluginVulnerabilityVisibility" v-on:submit.prevent>
+						<input name="directoryName" type="text" placeholder="Directory Name" v-model="pluginVulnerabilityForm.directoryName"/>
+						<input name="displayName" type="text" placeholder="Plugin Name" v-model="pluginVulnerabilityForm.displayName"/>
+						<input name="firstVersion" type="text" placeholder="First Version" v-model="pluginVulnerabilityForm.firstVersion"/>
+						<input name="lastVersion" type="text" placeholder="Last Version" v-model="pluginVulnerabilityForm.lastVersion"/>
+						<input name="vulnerabilityType" type="text" placeholder="Vulnerability Type" v-model="pluginVulnerabilityForm.vulnerabilityType"/>
+						<button type="submit" v-on:click="addPluginVulnerability">Add Plugin</button>
+					</form>
+				</div>
+				<div id="account" class="dynamic">
+					<h2 id="account-header">Account</h2>
+					<form id="change-password" v-on:submit.prevent>
+						<input name="newPassword" type="text" placeholder="New Password" id="new-password" v-model="newPassword"/>
+						<button type="submit" v-on:click="changePassword">Change Password</button>
+					</form>
+					<p id="password-message">{{ passwordMessage }}</p>
+				</div>
+			</div>
+			<div class="push"></div>
+		</div>
+	</section>
+	<footer>
+		<div class="wrapper">
+			<p>Copyright &copy; 2022 &middot; WP Wesley &middot; All Rights Reserved</p>
+		</div>
+	</footer>
+<script>
+var app = new Vue({
+  el: '#app',
+  data: {
+    username: null,
+    newPassword: null,
+    token: null,
+    scans: [],
+    themeVulnerabilities: [],
+    pluginVulnerabilities: [],
+    addThemeVulnerabilityVisibility: false,
+    addPluginVulnerabilityVisibility: false,
+    loginForm: {},
+    themeVulnerabilityForm: {},
+    pluginVulnerabilityForm: {},
+    loginMessage: '',
+    passwordMessage: ''
+  },
+  methods: {
+    toggleAddThemeVulnerability: function (event) {
+      this.addThemeVulnerabilityVisibility = !this.addThemeVulnerabilityVisibility;
+    },
+    toggleAddPluginVulnerability: function (event) {
+      this.addPluginVulnerabilityVisibility = !this.addPluginVulnerabilityVisibility;
+    },
+    login: function (event) {
+      this.loginMessage = '';
+
+      fetch('/api/login', {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(this.loginForm)
+      })
+      .then(response => {
+        if (response.ok) {
+          this.username = this.loginForm.username;
+          this.token = this.loginForm.username + '-' + this.loginForm.password;
+
+          this.getScans();
+          this.getThemeVulnerabilities();
+          this.getPluginVulnerabilities();
+        } else {
+          this.loginMessage = 'Invalid username or password!';
+        }
+      })
+    },
+    getScans: function (event) {
+      fetch('/api/scan', {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': this.token
+        }})
+        .then(response => response.json())
+        .then(scans => this.scans = scans);
+    },
+    getThemeVulnerabilities: function (event) {
+      fetch('/api/themeVulnerability', {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': this.token
+        }})
+        .then(response => response.json())
+        .then(themeVulnerabilities => this.themeVulnerabilities = themeVulnerabilities);
+    },
+    getPluginVulnerabilities: function (event) {
+      fetch('/api/pluginVulnerability', {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': this.token
+        }})
+        .then(response => response.json())
+        .then(pluginVulnerabilities => this.pluginVulnerabilities = pluginVulnerabilities);
+    },
+    addPluginVulnerability: function (event) {
+      this.addPluginVulnerabilityVisibility = false;
+      fetch('/api/pluginVulnerability', {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': this.token
+        },
+        body: JSON.stringify(this.pluginVulnerabilityForm)})
+        .then(response => this.getPluginVulnerabilities());
+    },
+    addThemeVulnerability: function (event) {
+      this.addThemeVulnerabilityVisibility = false;
+      fetch('/api/themeVulnerability', {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': this.token
+        },
+        body: JSON.stringify(this.themeVulnerabilityForm)})
+        .then(response => this.getThemeVulnerabilities());
+    },
+    changePassword: function (event) {
+      if (this.newPassword === null || this.newPassword === '') {
+        this.passwordMessage = 'Please enter a password!';
+        return;
+      }
+
+      fetch('/api/password', {
+        method: 'PUT',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': this.token
+        },
+        body: JSON.stringify({
+          username: this.username,
+          newPassword: this.newPassword
+        })})
+        .then(response => {
+          if (response.ok) {
+            this.token = this.username + '-' + this.newPassword;
+            this.passwordMessage = 'Your password has been changed!';
+          } else {
+            this.passwordMessage = 'Error changing password!';
+          }
+        });
+    }
+  }
+})
+</script>
+</body>
+</html>

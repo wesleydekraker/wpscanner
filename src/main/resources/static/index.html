@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<title>WordPress Security Scanner | WP Wesley</title>
+	<script src="/js/vue.min.js"></script>
+	<link rel="stylesheet" type="text/css" href="/css/main.css">
+</head>
+<body>
+	<header>
+		<div class="wrapper">
+			<img src="/images/logo.png" alt="WP Wesley">
+		</div>
+	</header>
+	<section>
+		<div id="app" class="wrapper">
+			<h1>WordPress Security Scanner</h1>
+			<p>Learn how to improve the security of your WordPress site.</p>
+			<form id="scan-form" v-on:submit.prevent>
+				<div class="url-cell">
+					<input id="url" name="url" type="text" placeholder="Enter the URL of your website" v-model="url" autofocus>
+				</div>
+				<div class="scan-cell">
+					<button id="scan-button" type="submit" v-on:click="startScan">Scan Website</button>
+				</div>
+			</form>
+			<div id="loading-bar" v-if="state === 'loading'">
+				<img src="/images/loading-bar.gif"/>
+			</div>
+			<div id="result" v-if="state === 'done'">
+				<p>{{ scan.message }}</p>
+				<h2>Security Problems</h2>
+				<table class="results" id="problems">
+					<tr>
+						<th>Priority</th>
+						<th>Problem</th>
+						<th>Solution</th>
+					</tr>
+					<tr v-for="problem in scan.problems">
+						<td>{{ problem.priority }}</td>
+						<td>{{ problem.problem }}</td>
+						<td>{{ problem.solution }}</td>
+					</tr>
+				</table>
+				<h2>Themes</h2>
+				<p v-if="scan.installedThemes.length === 0">No themes found.</p>
+				<table class="results" id="themes" v-if="scan.installedThemes.length > 0">
+					<tr>
+						<th>Theme Name</th>
+						<th>Directory Name</th>
+						<th>Version</th>
+					</tr>
+					<tr v-for="theme in scan.installedThemes">
+						<td>{{ theme.themeName }}</td>
+						<td>{{ theme.directoryName }}</td>
+						<td>{{ theme.version }}</td>
+					</tr>
+				</table>
+				<a id="toggle-theme" v-on:click="toggleAddTheme">Is a theme missing from the list? Add it manually to complete the scan!</a>
+				<form id="add-theme" v-if="addThemeVisibility" v-on:submit.prevent>
+					<input name="name" type="text" placeholder="Theme Name" v-model="themeName">
+					<button type="submit" v-on:click="addTheme">Add Theme</button>
+				</form>
+				<h2>Plugins</h2>
+				<p v-if="scan.installedPlugins.length === 0">No plugins found.</p>
+				<table class="results" id="plugins" v-if="scan.installedPlugins.length > 0">
+					<tr>
+						<th>Plugin Name</th>
+						<th>Directory Name</th>
+						<th>Version</th>
+					</tr>
+					<tr v-for="plugin in scan.installedPlugins">
+						<td>{{ plugin.pluginName }}</td>
+						<td>{{ plugin.directoryName }}</td>
+						<td>{{ plugin.version }}</td>
+					</tr>
+				</table>
+				<a id="toggle-plugin" v-on:click="toggleAddPlugin">Is a plugin missing from the list? Add it manually to complete the scan!</a>
+				<form id="add-plugin" v-if="addPluginVisibility" v-on:submit.prevent>
+					<input name="name" type="text" placeholder="Plugin Name" v-model="pluginName">
+					<button type="submit" v-on:click="addPlugin">Add Plugin</button>
+				</form>
+			</div>
+			<div class="push"></div>
+		</div>
+	</section>
+	<footer>
+		<div class="wrapper">
+			<p>Copyright &copy; 2022 &middot; WP Wesley &middot; All Rights Reserved</p>
+		</div>
+	</footer>
+<script>
+var app = new Vue({
+  el: '#app',
+  data: {
+    state: 'uninitialized',
+    scanGuid: null,
+    url: null,
+    themeName: '',
+    pluginName: '',
+    addThemeVisibility: false,
+    addPluginVisibility: false,
+    scan: {}
+  },
+  methods: {
+    toggleAddTheme: function (event) {
+      this.addThemeVisibility = !this.addThemeVisibility;
+    },
+    toggleAddPlugin: function (event) {
+      this.addPluginVisibility = !this.addPluginVisibility;
+    },
+    startScan: function (event) {
+      this.state = 'loading';
+      fetch('/api/scan', {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          url: this.url
+        })})
+        .then(response => response.json())
+        .then(scan => {
+          this.scanGuid = scan.scanGuid;
+          this.getScan();
+        });
+    },
+    getScan: function (event) {
+      fetch('/api/scan/' + this.scanGuid, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        }})
+        .then(response => response.json())
+        .then(scan => {
+          if (scan.finished) {
+            this.scan = scan;
+            this.state = 'done';
+          } else {
+            let getScan = this.getScan;
+            setTimeout(function() { getScan() }, 1000);
+          }
+        });
+    },
+    addPlugin: function (event) {
+      this.addPluginVisibility = false;
+      this.state = 'loading';
+      fetch('/api/scan/plugin', {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          scanGuid: this.scanGuid,
+          pluginName: this.pluginName
+        })})
+        .then(scan => {
+          this.state = 'done';
+          this.getScan();
+        });
+    },
+    addTheme: function (event) {
+      this.addThemeVisibility = false;
+      this.state = 'loading';
+      fetch('/api/scan/theme', {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          scanGuid: this.scanGuid,
+          themeName: this.themeName
+        })})
+        .then(scan => {
+          this.state = 'done';
+          this.getScan();
+        });
+    }
+  }
+})
+</script>
+</body>
+</html>
